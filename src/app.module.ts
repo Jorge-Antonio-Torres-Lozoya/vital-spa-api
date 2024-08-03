@@ -8,6 +8,7 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { DBOptions } from '../db.datasourceoptions';
 import { BookModule } from './book/book.module';
 import { APP_PIPE } from '@nestjs/core';
+import { BrevoService } from '../brevo.service';
 
 @Module({
   imports: [
@@ -38,7 +39,7 @@ import { APP_PIPE } from '@nestjs/core';
         whitelist: true,
       }),
     },
-    StripeService,
+    BrevoService,
   ],
 })
 export class AppModule {}

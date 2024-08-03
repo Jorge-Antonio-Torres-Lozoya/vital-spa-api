@@ -14,6 +14,9 @@ export class Book {
   @Column()
   imageUrl: string;
 
+  @Column({ nullable: true })
+  pdfUrl: string;
+
   @Column()
   stripePriceId: string;
 }

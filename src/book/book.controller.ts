@@ -9,6 +9,8 @@ import {
   Post,
   RawBodyRequest,
   Req,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
 import { BookService } from './book.service';
 import { Book } from './book.entity';
@@ -17,7 +19,13 @@ import Stripe from 'stripe';
 import { StripeService } from '../stripe.service';
 import { ConfigService } from '@nestjs/config';
 import { BuyBookDto } from './dto/buy-book.dto';
-
+import {
+  deleteImageReference,
+  deletePdfReference,
+  uploadPdfFirebase,
+  uploadPhotoFirebase,
+} from '../shared/firebase-fun';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 @Controller('book')
 export class BookController {
   constructor(
@@ -33,8 +41,38 @@ export class BookController {
   }
 
   @Post()
-  async create(@Body() body: CreateBookDto): Promise<Book> {
-    const book = await this.bookService.create(body);
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'image', maxCount: 1 },
+      { name: 'pdf', maxCount: 1 },
+      ,
+    ]),
+  )
+  async create(
+    @Body() body: CreateBookDto,
+    @UploadedFiles()
+    files: {
+      image?: Express.Multer.File[];
+      pdf?: Express.Multer.File[];
+    },
+  ): Promise<Book> {
+    console.log('createDto:', body);
+    if (files.pdf[0]) {
+      const pdfFileUrl = await uploadPdfFirebase(files.pdf[0]);
+      body.pdfUrl = pdfFileUrl;
+    }
+    if (files.image[0]) {
+      const imageUrl = await uploadPhotoFirebase(files.image[0]);
+      body.imageUrl = imageUrl;
+    }
+
+    const stripeProduct = await this.bookService.createStripeProduct(body);
+    const stripePrice = await this.bookService.createStripePrice(
+      body,
+      stripeProduct.id,
+    );
+    const book = await this.bookService.create(body, stripePrice.id);
+
     return book;
   }
 
@@ -64,7 +102,11 @@ export class BookController {
       console.log(session.metadata);
 
       // Payment is successful
-      //Sendgrid email
+      // Enviar correo electrónico usando el servicio de BookService
+      await this.bookService.sendPaymentSuccessEmail(
+        session.customer_details.email,
+        session.metadata.bookId,
+      );
       // await this.buyBookService.buySuccessful(accountId, buyCoinsId);
     }
     // Add more event types as needed
@@ -81,6 +123,12 @@ export class BookController {
   @Delete('/:id')
   async deleteBook(@Param('id') bookId: string): Promise<Book> {
     const book = await this.bookService.delete(parseInt(bookId));
+    if (book.imageUrl) {
+      deleteImageReference(book.imageUrl);
+    }
+    if (book.pdfUrl) {
+      deletePdfReference(book.pdfUrl);
+    }
     return book;
   }
 }

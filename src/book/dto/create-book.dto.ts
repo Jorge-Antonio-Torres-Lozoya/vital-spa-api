@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateBookDto {
   @IsNotEmpty()
@@ -9,7 +9,11 @@ export class CreateBookDto {
   @IsString()
   price: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   imageUrl: string;
+
+  @IsOptional()
+  @IsString()
+  pdfUrl: string;
 }

@@ -4,12 +4,16 @@ import { Book } from './book.entity';
 import { CreateBookDto } from './dto/create-book.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import Stripe from 'stripe';
+import { BrevoService } from '../../brevo.service';
 
 @Injectable()
 export class BookService {
   private stripe: Stripe;
 
-  constructor(@InjectRepository(Book) private repo: Repository<Book>) {
+  constructor(
+    @InjectRepository(Book) private repo: Repository<Book>,
+    private readonly brevoService: BrevoService,
+  ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
       apiVersion: '2023-10-16',
     });
@@ -20,23 +24,42 @@ export class BookService {
     return books;
   }
 
-  async create(createDto: CreateBookDto): Promise<Book> {
-    const stripeProduct = await this.stripe.products.create({
-      name: createDto.title,
-      images: [createDto.imageUrl],
-    });
+  async createStripeProduct(createDto: CreateBookDto) {
+    try {
+      // Asegúrate de que imageUrl esté correctamente definida
+      if (!createDto.imageUrl) {
+        throw new Error('Image URL is not provided');
+      }
 
-    const stripePrice = await this.stripe.prices.create({
+      const simpleImageUrl = 'https://tinyurl.com/wew44pm6';
+      console.log('Image URL used:', createDto.imageUrl);
+      const product = await this.stripe.products.create({
+        name: createDto.title,
+        images: [simpleImageUrl],
+      });
+      console.log('Product created:', product);
+      return product;
+    } catch (error) {
+      console.error('Error creating product in Stripe:', error);
+      throw new Error('Error creating product in Stripe');
+    }
+  }
+
+  async createStripePrice(createDto: CreateBookDto, productId: string) {
+    return await this.stripe.prices.create({
       unit_amount: parseInt(createDto.price) * 100,
       currency: 'mxn',
-      product: stripeProduct.id,
+      product: productId,
     });
+  }
 
+  async create(createDto: CreateBookDto, stripePriceId: string): Promise<Book> {
     const book = this.repo.create({
       title: createDto.title,
       price: createDto.price,
       imageUrl: createDto.imageUrl,
-      stripePriceId: stripePrice.id,
+      stripePriceId,
+      pdfUrl: createDto.pdfUrl,
     });
 
     await this.repo.save(book);
@@ -69,9 +92,17 @@ export class BookService {
       }
 
       // Desactiva el producto en Stripe
-      await this.stripe.products.update(stripePrice.product as string, {
-        active: false,
-      });
+      try {
+        await this.stripe.products.update(stripePrice.product as string, {
+          active: false,
+        });
+      } catch (error) {
+        console.error(
+          `Error deactivating product ${stripePrice.product}:`,
+          error,
+        );
+        throw new Error('Error deactivating product from Stripe');
+      }
     } catch (error) {
       console.error('Error deactivating product from Stripe:', error);
       throw new Error('Error deactivating product from Stripe');
@@ -81,5 +112,37 @@ export class BookService {
     await this.repo.remove(book);
 
     return book;
+  }
+
+  async sendPaymentSuccessEmail(email: string, bookId: string): Promise<void> {
+    const htmlContent = `
+      <html>
+        <body>
+          <p>Thank you for your purchase! Your book ID is <b>${bookId}</b>. Prueba</p>
+        </body>
+      </html>
+    `;
+
+    const mailData = {
+      mailData: {
+        sender: {
+          email: 'contacto@vitalcolima.com',
+          name: 'Estetica y Faciales Colima',
+        },
+        attachments: [], // Si tienes adjuntos, agrégalos aquí
+      },
+      subject: 'Payment Successful',
+      params: { bookId },
+      receivers: [{ email }],
+      htmlContent,
+    };
+
+    const emailSent = await this.brevoService.sendMail(mailData);
+
+    if (emailSent) {
+      console.log('Email sent successfully');
+    } else {
+      console.error('Failed to send email');
+    }
   }
 }
