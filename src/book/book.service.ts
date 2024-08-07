@@ -6,6 +6,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import Stripe from 'stripe';
 import { BrevoService } from '../../brevo.service';
 
+import axios from 'axios';
+
 @Injectable()
 export class BookService {
   private stripe: Stripe;
@@ -31,11 +33,9 @@ export class BookService {
         throw new Error('Image URL is not provided');
       }
 
-      const simpleImageUrl = 'https://tinyurl.com/wew44pm6';
-      console.log('Image URL used:', createDto.imageUrl);
       const product = await this.stripe.products.create({
         name: createDto.title,
-        images: [simpleImageUrl],
+        images: [createDto.imageUrl],
       });
       console.log('Product created:', product);
       return product;
@@ -114,7 +114,7 @@ export class BookService {
     return book;
   }
 
-  async sendPaymentSuccessEmail(email: string, bookId: string): Promise<void> {
+  async sendPaymentSuccessEmail(email: string, bookId: number): Promise<void> {
     const htmlContent = `
       <html>
         <body>
@@ -122,6 +122,16 @@ export class BookService {
         </body>
       </html>
     `;
+    const foundPdf = await this.repo.findOne({ where: { bookId: bookId } });
+    if (!foundPdf) {
+      throw new Error('PDF not found');
+    }
+    console.log('foundPdf', foundPdf);
+    const pdfUrl = foundPdf.pdfUrl;
+    console.log('pdfUrl', pdfUrl);
+
+    const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
+    const pdfData = Buffer.from(response.data).toString('base64');
 
     const mailData = {
       mailData: {
@@ -129,7 +139,16 @@ export class BookService {
           email: 'contacto@vitalcolima.com',
           name: 'Estetica y Faciales Colima',
         },
-        attachments: [], // Si tienes adjuntos, agrégalos aquí
+        attachments: [
+          {
+            content: pdfData,
+            filename: 'your-book.pdf',
+            name: 'your-book.pdf',
+            type: 'application/pdf',
+            disposition: 'attachment',
+            contendId: 'pdfAttachment',
+          },
+        ], // Si tienes adjuntos, agrégalos aquí
       },
       subject: 'Payment Successful',
       params: { bookId },

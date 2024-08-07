@@ -21,10 +21,10 @@ import * as path from 'path';
 //     console.log('Uploaded a blob or file!');
 //   });
 
-//   const httpsReference = ref(
-//     storage,
-//     `https://firebasestorage.googleapis.com/v0/b/bucket/o/${fileName}?alt=media`,
-//   );
+// const httpsReference = ref(
+//   storage,
+//   `https://firebasestorage.googleapis.com/v0/b/bucket/o/${fileName}?alt=media`,
+// );
 //   const imageUrl = await getDownloadURL(imageRef);
 //   console.log('File URL:', imageUrl);
 //   return imageUrl;
@@ -46,15 +46,21 @@ export const uploadPhotoFirebase = async (file: Express.Multer.File) => {
     const imageRef = ref(storage, `imagenes/${fileName}`);
     // Use bucket instead of ref
 
+    const metadata = {
+      contentType: file.mimetype, // Tipo MIME del archivo
+      contentDisposition: 'inline', // Muestra el archivo en lugar de descargarlo
+    };
+
     // Upload the image to Firebase Storage
-    await uploadBytes(imageRef, file.buffer).then((snapshot) => {
+    await uploadBytes(imageRef, file.buffer, metadata).then((snapshot) => {
       console.log('Uploaded a blob or file!');
     });
     console.log('Image uploaded to Firebase Storage:', fileName);
 
     // Get the downloadable URL for the image (consider security rules)
+
     const imageUrl = await getDownloadURL(imageRef);
-    console.log('URL de la imagen:', imageUrl);
+
     return imageUrl;
   } catch (error) {
     console.error('Error uploading image to Firebase Storage:', error);

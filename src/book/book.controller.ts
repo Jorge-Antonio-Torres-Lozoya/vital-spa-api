@@ -105,7 +105,7 @@ export class BookController {
       // Enviar correo electrónico usando el servicio de BookService
       await this.bookService.sendPaymentSuccessEmail(
         session.customer_details.email,
-        session.metadata.bookId,
+        parseInt(session.metadata.bookId),
       );
       // await this.buyBookService.buySuccessful(accountId, buyCoinsId);
     }
