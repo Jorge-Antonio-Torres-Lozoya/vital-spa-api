@@ -60,7 +60,9 @@ export class BookService {
       imageUrl: createDto.imageUrl,
       stripePriceId,
       pdfUrl: createDto.pdfUrl,
+      videoUrls: createDto.videoUrls,
     });
+    console.log(book);
 
     await this.repo.save(book);
     return book;
@@ -122,16 +124,85 @@ export class BookService {
         </body>
       </html>
     `;
-    const foundPdf = await this.repo.findOne({ where: { bookId: bookId } });
-    if (!foundPdf) {
-      throw new Error('PDF not found');
-    }
-    console.log('foundPdf', foundPdf);
-    const pdfUrl = foundPdf.pdfUrl;
-    console.log('pdfUrl', pdfUrl);
 
-    const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
-    const pdfData = Buffer.from(response.data).toString('base64');
+    // const foundPdf = await this.repo.findOne({ where: { bookId: bookId } });
+    // if (!foundPdf) {
+    //   throw new Error('PDF not found');
+    // }
+    // console.log('foundPdf', foundPdf);
+    // const pdfUrl = foundPdf.pdfUrl;
+    // console.log('pdfUrl', pdfUrl);
+
+    // const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
+    // const pdfData = Buffer.from(response.data).toString('base64');
+
+    // const mailData = {
+    //   mailData: {
+    //     sender: {
+    //       email: 'contacto@vitalcolima.com',
+    //       name: 'Estetica y Faciales Colima',
+    //     },
+    //     attachments: [
+    //       {
+    //         content: pdfData,
+    //         filename: 'your-book.pdf',
+    //         name: 'your-book.pdf',
+    //         type: 'application/pdf',
+    //         disposition: 'attachment',
+    //         contendId: 'pdfAttachment',
+    //       },
+    //     ], // Si tienes adjuntos, agrégalos aquí
+    //   },
+    //   subject: 'Payment Successful',
+    //   params: { bookId },
+    //   receivers: [{ email }],
+    //   htmlContent,
+    // };
+
+    const foundBook = await this.repo.findOne({ where: { bookId: bookId } });
+    if (!foundBook) {
+      throw new Error('Book not found');
+    }
+
+    // Procesa el PDF
+    const pdfUrl = foundBook.pdfUrl;
+    let pdfAttachment = null;
+    if (pdfUrl) {
+      const response = await axios.get(pdfUrl, { responseType: 'arraybuffer' });
+      const pdfData = Buffer.from(response.data).toString('base64');
+      pdfAttachment = {
+        content: pdfData,
+        filename: 'your-book.pdf',
+        name: 'your-book.pdf',
+        type: 'application/pdf',
+        disposition: 'attachment',
+        contentId: 'pdfAttachment',
+      };
+    }
+
+    // Procesa los videos
+    const videoAttachments = [];
+
+    if (foundBook.videoUrls && foundBook.videoUrls.length > 0) {
+      for (const videoUrl of foundBook.videoUrls) {
+        try {
+          const videoResponse = await axios.get(videoUrl, {
+            responseType: 'arraybuffer',
+          });
+          const videoData = Buffer.from(videoResponse.data).toString('base64');
+          videoAttachments.push({
+            content: videoData,
+            filename: `video-${foundBook.videoUrls.indexOf(videoUrl)}.mp4`, // Ajusta el nombre según sea necesario
+            name: `video-${foundBook.videoUrls.indexOf(videoUrl)}.mp4`,
+            type: 'video/mp4',
+            disposition: 'attachment',
+            contentId: `videoAttachment-${foundBook.videoUrls.indexOf(videoUrl)}`,
+          });
+        } catch (error) {
+          // console.error(`Failed to process video at ${videoUrl}:`, error);
+        }
+      }
+    }
 
     const mailData = {
       mailData: {
@@ -140,15 +211,9 @@ export class BookService {
           name: 'Estetica y Faciales Colima',
         },
         attachments: [
-          {
-            content: pdfData,
-            filename: 'your-book.pdf',
-            name: 'your-book.pdf',
-            type: 'application/pdf',
-            disposition: 'attachment',
-            contendId: 'pdfAttachment',
-          },
-        ], // Si tienes adjuntos, agrégalos aquí
+          ...(pdfAttachment ? [pdfAttachment] : []),
+          ...videoAttachments,
+        ],
       },
       subject: 'Payment Successful',
       params: { bookId },
@@ -156,12 +221,16 @@ export class BookService {
       htmlContent,
     };
 
-    const emailSent = await this.brevoService.sendMail(mailData);
-
-    if (emailSent) {
-      console.log('Email sent successfully');
-    } else {
-      console.error('Failed to send email');
+    // Envía el correo
+    try {
+      const emailSent = await this.brevoService.sendMail(mailData);
+      if (emailSent) {
+        console.log('Email sent successfully');
+      } else {
+        console.error('Failed to send email');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
     }
   }
 }

@@ -90,6 +90,37 @@ export const uploadPdfFirebase = async (file: Express.Multer.File) => {
   return fileUrl;
 };
 
+export const uploadVideoFirebase = async (file: Express.Multer.File) => {
+  try {
+    // Genera un nombre de archivo aleatorio
+    const randomName = Array(32)
+      .fill(null)
+      .map(() => Math.round(Math.random() * 16).toString(16))
+      .join('');
+    const ext = extname(file.originalname); // Obtén la extensión del archivo
+    const fileName = `${randomName}${ext}`; // Nombre del archivo con extensión
+
+    // Crea una referencia al archivo en el bucket de Firebase Storage
+    const videoRef = ref(storage, `videos/${fileName}`);
+
+    // Define los metadatos que quieres aplicar
+
+    // Sube el archivo con los metadatos
+    await uploadBytes(videoRef, file.buffer).then((snapshot) => {
+      console.log('Uploaded a video!');
+    });
+
+    // Obtén la URL de descarga del archivo
+    const videoUrl = await getDownloadURL(videoRef);
+    console.log('Video URL:', videoUrl);
+
+    return videoUrl;
+  } catch (error) {
+    console.error('Error uploading video:', error);
+    throw new Error('Error uploading video');
+  }
+};
+
 export const deleteImageReference = (imageUrl: string) => {
   const deleteImageRef = ref(
     storage,

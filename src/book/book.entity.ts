@@ -17,6 +17,10 @@ export class Book {
   @Column({ nullable: true })
   pdfUrl: string;
 
+  @Column({ type: 'simple-array', nullable: true })
+  // videoUrls: string[]; Usar en produccion
+  videoUrls: string[];
+
   @Column()
   stripePriceId: string;
 }

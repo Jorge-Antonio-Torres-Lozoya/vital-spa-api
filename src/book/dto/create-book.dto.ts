@@ -16,4 +16,9 @@ export class CreateBookDto {
   @IsOptional()
   @IsString()
   pdfUrl: string;
+
+  @IsOptional()
+  // @IsArray()
+  @IsString({ each: true })
+  videoUrls?: string[];
 }

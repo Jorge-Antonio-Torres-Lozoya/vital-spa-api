@@ -24,6 +24,7 @@ import {
   deletePdfReference,
   uploadPdfFirebase,
   uploadPhotoFirebase,
+  uploadVideoFirebase,
 } from '../shared/firebase-fun';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 @Controller('book')
@@ -45,7 +46,7 @@ export class BookController {
     FileFieldsInterceptor([
       { name: 'image', maxCount: 1 },
       { name: 'pdf', maxCount: 1 },
-      ,
+      { name: 'videos', maxCount: 5 },
     ]),
   )
   async create(
@@ -54,6 +55,7 @@ export class BookController {
     files: {
       image?: Express.Multer.File[];
       pdf?: Express.Multer.File[];
+      videos?: Express.Multer.File[];
     },
   ): Promise<Book> {
     console.log('createDto:', body);
@@ -64,6 +66,15 @@ export class BookController {
     if (files.image[0]) {
       const imageUrl = await uploadPhotoFirebase(files.image[0]);
       body.imageUrl = imageUrl;
+    }
+
+    if (files.videos) {
+      const videosUrls: string[] = [];
+      for (let i = 0; i < files.videos.length; i++) {
+        const videoUrl = await uploadVideoFirebase(files.videos[i]);
+        videosUrls.push(videoUrl);
+      }
+      body.videoUrls = videosUrls; // Asegúrate de que CreateBookDto tenga una propiedad `videoUrls`
     }
 
     const stripeProduct = await this.bookService.createStripeProduct(body);
