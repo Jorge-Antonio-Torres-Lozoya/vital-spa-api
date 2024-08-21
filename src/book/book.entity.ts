@@ -1,4 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Sale } from '../sale/sale.entity';
 
 @Entity()
 export class Book {
@@ -18,9 +19,14 @@ export class Book {
   pdfUrl: string;
 
   @Column({ type: 'simple-array', nullable: true })
-  // videoUrls: string[]; Usar en produccion
   videoUrls: string[];
 
   @Column()
   stripePriceId: string;
+
+  @OneToMany(() => Sale, (sale) => sale.book, {
+    cascade: true,
+    onDelete: 'SET NULL',
+  })
+  sales: Sale[];
 }

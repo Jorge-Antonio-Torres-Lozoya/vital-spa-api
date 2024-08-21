@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Headers,
+  InternalServerErrorException,
   Param,
   Post,
   RawBodyRequest,
@@ -27,18 +28,26 @@ import {
   uploadVideoFirebase,
 } from '../shared/firebase-fun';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { SaleService } from '../sale/sale.service';
 @Controller('book')
 export class BookController {
   constructor(
     private bookService: BookService,
     private stripeService: StripeService,
     private configService: ConfigService,
+    private saleService: SaleService,
   ) {}
 
   @Get()
   async getBooks(): Promise<Book[]> {
     const books = await this.bookService.getAll();
     return books;
+  }
+
+  @Get('/:id')
+  async getBook(@Param('id') bookId: string): Promise<Book> {
+    const book = await this.bookService.getById(parseInt(bookId));
+    return book;
   }
 
   @Post()
@@ -107,20 +116,34 @@ export class BookController {
     const session: Stripe.Checkout.Session = event.data
       .object as Stripe.Checkout.Session;
 
-    // const buyBookId = session.metadata.buyBookId;
     if (eventType === 'checkout.session.completed') {
       console.log('Payment was successful ' + session.customer_details.email);
       console.log(session.metadata);
 
-      // Payment is successful
-      // Enviar correo electrónico usando el servicio de BookService
-      await this.bookService.sendPaymentSuccessEmail(
-        session.customer_details.email,
-        parseInt(session.metadata.bookId),
-      );
-      // await this.buyBookService.buySuccessful(accountId, buyCoinsId);
+      try {
+        const bookId = parseInt(session.metadata.bookId);
+        const book = await this.bookService.getById(bookId);
+        if (!book) {
+          throw new Error('Book not found');
+        }
+
+        // Crear la venta
+        const sale = await this.saleService.create({
+          total_price: parseInt(book.price),
+          bookId: bookId,
+        });
+
+        // Enviar correo electrónico de confirmación
+        await this.bookService.sendPaymentSuccessEmail(
+          session.customer_details.email,
+          bookId,
+          sale.saleId,
+        );
+      } catch (error) {
+        console.error('Error processing payment:', error.message);
+        throw new InternalServerErrorException('Error processing payment');
+      }
     }
-    // Add more event types as needed
   }
 
   @Post('buy')
@@ -141,5 +164,16 @@ export class BookController {
       deletePdfReference(book.pdfUrl);
     }
     return book;
+  }
+
+  @Get('session/:session_id')
+  async retrieveSession(@Param('session_id') sessionId: string) {
+    try {
+      const session = await this.stripeService.retrieveSession(sessionId);
+      const bookId = session.metadata.bookId;
+      return { bookId };
+    } catch (error) {
+      return { error: 'Unable to retrieve session' };
+    }
   }
 }

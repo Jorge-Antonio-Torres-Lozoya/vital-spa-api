@@ -9,6 +9,7 @@ import { DBOptions } from '../db.datasourceoptions';
 import { BookModule } from './book/book.module';
 import { APP_PIPE } from '@nestjs/core';
 import { BrevoService } from '../brevo.service';
+import { SaleModule } from './sale/sale.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { BrevoService } from '../brevo.service';
       },
     }),
     BookModule,
+    SaleModule,
   ],
   controllers: [AppController],
   providers: [

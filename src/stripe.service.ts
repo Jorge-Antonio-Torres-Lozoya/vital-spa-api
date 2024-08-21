@@ -46,4 +46,8 @@ export class StripeService {
       );
     }
   }
+
+  async retrieveSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    return await this.stripe.checkout.sessions.retrieve(sessionId);
+  }
 }
